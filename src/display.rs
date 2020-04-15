@@ -12,7 +12,6 @@ const CHAR_HEIGHT: u16 = 9;
 const WIDTH: u16 = CHAR_WIDTH * COLUMNS;
 const HEIGHT: u16 = CHAR_HEIGHT * ROWS;
 const CHARACTER_PATH: &str = "/font.png";
-const VRAM: u16 = 0x0000;//0xFB68;
 
 const PALETTE: [graphics::Color; 16] = [
 	graphics::Color	{r:	0.078,	g:	0.082, b:	0.094,	a:	1.0}, // Black
@@ -95,6 +94,17 @@ impl Display {
 
 	pub fn render(&self, ctx: &mut ggez::Context) {
 		use graphics::Drawable;
+
+		let ram = self.ram.try_borrow().unwrap();
+
+		let attributes = match ram.read(crate::VATTRIBUTES) {
+			Ok(value) => value,
+			Err(_err) => {println!("Could not read VATTRIBUTES, defaulting to 0"); 0},
+		};
+
+		let vram_offset = attributes & 0b1111111100000000 >> 8;
+		let vram_read_location = crate::VRAM - vram_offset * COLUMNS;
+
 		
 		let mut character_batch = graphics::spritebatch::SpriteBatch::new(self.character_set.clone());
 		let mut background_batch = graphics::spritebatch::SpriteBatch::new(self.blank.clone());
@@ -102,10 +112,9 @@ impl Display {
 		graphics::set_screen_coordinates(ctx, graphics::Rect::new(0.0, 0.0, WIDTH as f32, HEIGHT as f32)).unwrap();
 
 		{
-			let ram = self.ram.try_borrow().unwrap();
 			for x in 0..COLUMNS {
 				for y in 0..ROWS {
-					let short_check = ram.read(VRAM + x + y * COLUMNS);
+					let short_check = ram.read(vram_read_location + x + y * COLUMNS);
 					let short = match short_check {
 						Ok(value) => value,
 						Err(err) => panic!(err.message),
@@ -147,7 +156,18 @@ impl Display {
 
 		graphics::set_screen_coordinates(ctx, graphics::Rect::new(0.0, 0.0, self.screen_size.x, self.screen_size.y)).unwrap();
 		graphics::set_canvas(ctx, None);
+
+		let background_color_index = attributes & 0xF;
+
+		graphics::clear(ctx, PALETTE[background_color_index as usize]);
 		self.canvas.draw(ctx, self.canvas_params).unwrap();
 		self.canvas.dimensions(ctx);
+
+		let vblanked_attributes = attributes | 0b0000000010000000;
+
+		match ram.write(crate::VATTRIBUTES, vblanked_attributes) {
+			Ok(_) => (),
+			Err(err) => println!("While setting V-blank bit: {}", err.message),
+		};
 	}
 }

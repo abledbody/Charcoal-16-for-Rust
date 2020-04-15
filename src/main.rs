@@ -5,6 +5,8 @@ use std::time::Duration;
 mod display;
 
 const BLACK: graphics::Color = graphics::Color {r: 0.0, g: 0.0, b: 0.0, a: 1.0};
+const VRAM: u16 = 0xFB65;
+const VATTRIBUTES: u16 = 0xFFFD;
 
 struct State {
 	dt: Duration,
@@ -39,7 +41,7 @@ fn main() {
 	if args.len() < 2 {
 		println!("Please provide a path to the binary file for Charcoal-16 to execute.");
 	}
-	else{
+	else {
 		let computer = asm_19::Computer::new();
 		asm_19::load_rom(&computer, &args[1]);
 
