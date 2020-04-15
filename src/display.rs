@@ -1,16 +1,16 @@
 use asm_19::memory;
-use ggez::graphics;
+use ggez::*;
 use mint;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-const WIDTH: u16 = 252;
-const HEIGHT: u16 = 252;
 const PADDING: u16 = 2;
 const COLUMNS: u16 = 42;
 const ROWS: u16 = 28;
 const CHAR_WIDTH: u16 = 6;
 const CHAR_HEIGHT: u16 = 9;
+const WIDTH: u16 = CHAR_WIDTH * COLUMNS;
+const HEIGHT: u16 = CHAR_HEIGHT * ROWS;
 const CHARACTER_PATH: &str = "/font.png";
 const VRAM: u16 = 0x0000;//0xFB68;
 
@@ -44,6 +44,7 @@ pub struct Display {
 	char_screen_params: graphics::DrawParam,
 	character_set: graphics::Image,
 	blank: graphics::Image,
+	screen_size: mint::Point2<f32>,
 }
 
 impl Display {
@@ -66,6 +67,7 @@ impl Display {
 			char_screen_params,
 			character_set,
 			blank,
+			screen_size: mint::Point2 {x: 512.0, y: 512.0},
 		}
 	}
 
@@ -73,18 +75,22 @@ impl Display {
 		let width_scale	= width	as u16 / (WIDTH + PADDING * 2);
 		let height_scale = height as u16 / (HEIGHT + PADDING * 2);
 
+		
+
 		let max_scale = std::cmp::min(width_scale, height_scale);
 
 		let canvas_width = (WIDTH * max_scale) as f32;
 		let canvas_height = (HEIGHT * max_scale) as f32;
 
-		let h_offset = 0.5 - canvas_width / width / 2.0;
-		let v_offset = 0.5 - canvas_height / height / 2.0;
-
+		let h_offset = (width - canvas_width) / 2.0;
+		let v_offset = (height - canvas_height) / 2.0;
+		
 		let canvas_params = self.canvas_params.dest(mint::Point2 {x: h_offset, y: v_offset})
-			.scale(mint::Point2 {x: max_scale as f32 / width, y: max_scale as f32 / height});
+			.scale(mint::Point2 {x: max_scale as f32, y: max_scale as f32});
 
-		self.canvas_params = canvas_params;	
+		self.screen_size = mint::Point2 {x: width, y: height};
+		
+		self.canvas_params = canvas_params;
 	}
 
 	pub fn render(&self, ctx: &mut ggez::Context) {
@@ -92,6 +98,8 @@ impl Display {
 		
 		let mut character_batch = graphics::spritebatch::SpriteBatch::new(self.character_set.clone());
 		let mut background_batch = graphics::spritebatch::SpriteBatch::new(self.blank.clone());
+
+		graphics::set_screen_coordinates(ctx, graphics::Rect::new(0.0, 0.0, WIDTH as f32, HEIGHT as f32)).unwrap();
 
 		{
 			let ram = self.ram.try_borrow().unwrap();
@@ -137,6 +145,7 @@ impl Display {
 		background_batch.draw(ctx, self.char_screen_params).unwrap();
 		character_batch.draw(ctx, self.char_screen_params).unwrap();
 
+		graphics::set_screen_coordinates(ctx, graphics::Rect::new(0.0, 0.0, self.screen_size.x, self.screen_size.y)).unwrap();
 		graphics::set_canvas(ctx, None);
 		self.canvas.draw(ctx, self.canvas_params).unwrap();
 		self.canvas.dimensions(ctx);

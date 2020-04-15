@@ -45,19 +45,12 @@ fn main() {
 
 		println!("Successfully loaded ROM from {}", args[1]);
 
-		
-		let window_mode = ggez::conf::WindowMode {
-			width: 1.0,
-			height: 1.0,
-			maximized: false,
-			fullscreen_type: ggez::conf::FullscreenType::Windowed,
-			borderless: false,
-			min_width: 256.0,
-			max_width: 0.0,
-			min_height: 256.0,
-			max_height: 0.0,
-			resizable: true,
-		};
+		let mut window_mode = ggez::conf::WindowMode::default();
+		window_mode.width = 512.0;
+		window_mode.height = 512.0;
+		window_mode.min_width = 256.0;
+		window_mode.min_height = 256.0;
+		window_mode.resizable = true;
 
 		let window_conf = conf::WindowSetup {
 			title: "Charcoal-16".to_owned(),
@@ -82,7 +75,7 @@ fn main() {
 		let state = &mut State {
 			dt: std::time::Duration::new(0, 0),
 			screen: new_screen,
-			computer: computer,
+			computer,
 		};
 
 		event::run(ctx, event_loop, state).unwrap();
