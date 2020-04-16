@@ -3,6 +3,7 @@ use asm_19;
 use std::time::Duration;
 
 mod display;
+mod palettes;
 
 const BLACK: graphics::Color = graphics::Color {r: 0.0, g: 0.0, b: 0.0, a: 1.0};
 const VRAM: u16 = 0xFB65;

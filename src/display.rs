@@ -13,29 +13,6 @@ const WIDTH: u16 = CHAR_WIDTH * COLUMNS;
 const HEIGHT: u16 = CHAR_HEIGHT * ROWS;
 const CHARACTER_PATH: &str = "/font.png";
 
-const PALETTE: [graphics::Color; 16] = [
-	graphics::Color	{r:	0.078,	g:	0.082, b:	0.094,	a:	1.0}, // Black
-	graphics::Color	{r:	0.122,	g:	0.192, b:	0.272,	a:	1.0}, // Dark blue
-	graphics::Color	{r:	0.380,	g:	0.106, b:	0.157,	a:	1.0}, // Maroon
-	graphics::Color	{r:	0.188,	g:	0.349, b:	0.031,	a:	1.0}, // Dark green
-
-	graphics::Color	{r:	0.565,	g:	0.365, b:	0.263,	a:	1.0}, // Brown
-	graphics::Color	{r:	0.298,	g:	0.298, b:	0.318,	a:	1.0}, // Dark grey
-	graphics::Color	{r:	0.537,	g:	0.533, b:	0.510,	a:	1.0}, // Light grey
-	graphics::Color	{r:	1.000,	g:	0.984, b:	0.918,	a:	1.0}, // White
-
-	graphics::Color	{r:	0.733,	g:	0.106, b:	0.086,	a:	1.0}, // Red
-	graphics::Color	{r:	1.000,	g:	0.435, b:	0.075,	a:	1.0}, // Orange
-	graphics::Color	{r:	1.000,	g:	0.925, b:	0.384,	a:	1.0}, // Yellow
-	graphics::Color	{r:	0.498,	g:	0.659, b:	0.275,	a:	1.0}, // Light green
-
-	graphics::Color	{r:	0.553,	g:	0.722, b:	0.835,	a:	1.0}, // Light blue
-	graphics::Color	{r:	0.361,	g:	0.278, b:	0.725,	a:	1.0}, // Periwinkle
-	graphics::Color	{r:	0.945,	g:	0.388, b:	0.569,	a:	1.0}, // Pink
-	graphics::Color	{r:	0.961,	g:	0.749, b:	0.549,	a:	1.0}, // Tan
-];
-
-
 pub struct Display {
 	ram: Rc<RefCell<memory::Memory>>,
 	canvas: graphics::Canvas,
@@ -102,8 +79,11 @@ impl Display {
 			Err(_err) => {println!("Could not read VATTRIBUTES, defaulting to 0"); 0},
 		};
 
-		let vram_offset = attributes & 0b1111111100000000 >> 8;
+		let vram_offset = attributes >> 8;
 		let vram_read_location = crate::VRAM - vram_offset * COLUMNS;
+
+		let palette = attributes >> 4 & 0b111; // 0000,0000,0111,0000
+		let palette = crate::palettes::PALETTES[palette as usize];
 
 		
 		let mut character_batch = graphics::spritebatch::SpriteBatch::new(self.character_set.clone());
@@ -120,10 +100,10 @@ impl Display {
 						Err(err) => panic!(err.message),
 					};
 
-					let char_index = short & 0x00FF;
-					let color_indexes = short >> 8;
-					let fg_color_index = color_indexes & 0x0F;
-					let bg_color_index = color_indexes >> 4;
+					let char_index = short & 0b11111111; // 0000,0000,1111,1111;
+					let color_indexes = short >> 8; // 1111,1111,0000,0000;
+					let fg_color_index = color_indexes & 0b1111; // 0000,1111,0000,0000
+					let bg_color_index = color_indexes >> 4; // 1111,0000,0000,0000
 
 					let char_source = graphics::Rect::new(
 						(char_index % 16) as f32 / 16.0,
@@ -136,14 +116,14 @@ impl Display {
 						.src(graphics::Rect::new(1.0, 1.0, 1.0, 1.0))
 						.dest(mint::Point2 {x: (x * CHAR_WIDTH) as f32, y: (y * CHAR_HEIGHT) as f32})
 						.scale(mint::Point2 {x: CHAR_WIDTH as f32, y: CHAR_HEIGHT as f32})
-						.color(PALETTE[bg_color_index as usize]);
+						.color(palette[bg_color_index as usize]);
 
 					background_batch.add(background_rect);
 
 					let new_character = graphics::DrawParam::new()
 						.src(char_source)
 						.dest(mint::Point2 {x: (x * CHAR_WIDTH) as f32, y: (y * CHAR_HEIGHT) as f32})
-						.color(PALETTE[fg_color_index as usize]);
+						.color(palette[fg_color_index as usize]);
 					character_batch.add(new_character);
 				}
 			}
@@ -159,7 +139,7 @@ impl Display {
 
 		let background_color_index = attributes & 0xF;
 
-		graphics::clear(ctx, PALETTE[background_color_index as usize]);
+		graphics::clear(ctx, palette[background_color_index as usize]);
 		self.canvas.draw(ctx, self.canvas_params).unwrap();
 		self.canvas.dimensions(ctx);
 
