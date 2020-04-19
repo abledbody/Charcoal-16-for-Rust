@@ -8,9 +8,12 @@ mod palettes;
 const BLACK: graphics::Color = graphics::Color {r: 0.0, g: 0.0, b: 0.0, a: 1.0};
 const VRAM: u16 = 0xFB65;
 const VATTRIBUTES: u16 = 0xFFFD;
+const CLOCK_SPEED: f64 = 1000000.0;
+const MAX_TIME_STEP: f64 = 0.5;
 
 struct State {
 	dt: Duration,
+	cycle_error: f64,
 	screen: display::Display,
 	computer: asm_19::Computer,
 }
@@ -18,8 +21,20 @@ struct State {
 impl event::EventHandler for State {
 	fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
 		self.dt = timer::delta(ctx);
-		//ggez::timer::sleep(Duration::new(0, 500000000));
-		self.computer.cpu.tick();
+		let seconds = self.dt.as_secs_f64();
+		
+		let clock_cycles = if seconds <= MAX_TIME_STEP {
+			let clock_cycles = seconds * CLOCK_SPEED - self.cycle_error;
+			self.cycle_error = clock_cycles % 1.0;
+			clock_cycles
+		} else {
+			self.cycle_error = 0.0;
+			MAX_TIME_STEP * CLOCK_SPEED
+		};
+
+		for _i in 0..clock_cycles as u64 {
+			self.computer.cpu.tick();
+		}
 		Ok(())
 	}
 
@@ -77,6 +92,7 @@ fn main() {
 		
 		let state = &mut State {
 			dt: std::time::Duration::new(0, 0),
+			cycle_error: 0.0,
 			screen: new_screen,
 			computer,
 		};
