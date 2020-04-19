@@ -43,7 +43,7 @@ fn main() {
 		println!("Please provide a path to the binary file for Charcoal-16 to execute.");
 	}
 	else {
-		let computer = asm_19::Computer::new();
+		let computer = asm_19::Computer::new(false);
 		asm_19::load_rom(&computer, &args[1]);
 
 		println!("Successfully loaded ROM from {}", args[1]);
