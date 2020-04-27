@@ -4,10 +4,12 @@ use std::time::Duration;
 
 mod display;
 mod palettes;
+mod gamepads;
 
 const BLACK: graphics::Color = graphics::Color {r: 0.0, g: 0.0, b: 0.0, a: 1.0};
 const VRAM: u16 = 0xFB65;
 const VATTRIBUTES: u16 = 0xFFFD;
+const GAMEPADS: u16 = 0xFFFF;
 const CLOCK_SPEED: f64 = 1000000.0;
 const MAX_TIME_STEP: f64 = 0.5;
 
@@ -16,6 +18,7 @@ struct State {
 	cycle_error: f64,
 	screen: display::Display,
 	computer: asm_19::Computer,
+	gamepads: gamepads::Gamepads,
 }
 
 impl event::EventHandler for State {
@@ -35,6 +38,9 @@ impl event::EventHandler for State {
 		for _i in 0..clock_cycles as u64 {
 			self.computer.cpu.tick();
 		}
+
+		self.gamepads.update(ctx);
+
 		Ok(())
 	}
 
@@ -89,11 +95,13 @@ fn main() {
 			.unwrap();
 		
 		let new_screen = display::Display::new(ctx, computer.ram.clone());
+		let gamepads = gamepads::Gamepads::new(computer.ram.clone());
 		
 		let state = &mut State {
 			dt: std::time::Duration::new(0, 0),
 			cycle_error: 0.0,
 			screen: new_screen,
+			gamepads,
 			computer,
 		};
 
