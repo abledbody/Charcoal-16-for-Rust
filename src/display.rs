@@ -17,9 +17,9 @@ pub struct Display {
 	ram: Rc<RefCell<memory::Memory>>,
 	canvas: graphics::Canvas,
 	canvas_params: graphics::DrawParam,
+	character_batch: graphics::spritebatch::SpriteBatch,
+	background_batch: graphics::spritebatch::SpriteBatch,
 	char_screen_params: graphics::DrawParam,
-	character_set: graphics::Image,
-	blank: graphics::Image,
 	screen_size: mint::Point2<f32>,
 }
 
@@ -36,13 +36,16 @@ impl Display {
 			.dest(mint::Point2 {x: 2.0, y: 2.0});
 		let char_screen_params = graphics::DrawParam::new();
 
+		let character_batch = graphics::spritebatch::SpriteBatch::new(character_set);
+		let background_batch = graphics::spritebatch::SpriteBatch::new(blank);
+
 		Display {
 			ram,
 			canvas,
 			canvas_params,
 			char_screen_params,
-			character_set,
-			blank,
+			character_batch,
+			background_batch,
 			screen_size: mint::Point2 {x: 512.0, y: 512.0},
 		}
 	}
@@ -69,7 +72,7 @@ impl Display {
 		self.canvas_params = canvas_params;
 	}
 
-	pub fn render(&self, ctx: &mut ggez::Context) {
+	pub fn render(&mut self, ctx: &mut ggez::Context) {
 		use graphics::Drawable;
 
 		let ram = self.ram.try_borrow().unwrap();
@@ -85,9 +88,8 @@ impl Display {
 		let palette = attributes >> 4 & 0b111; // 0000,0000,0111,0000
 		let palette = crate::palettes::PALETTES[palette as usize];
 
-		
-		let mut character_batch = graphics::spritebatch::SpriteBatch::new(self.character_set.clone());
-		let mut background_batch = graphics::spritebatch::SpriteBatch::new(self.blank.clone());
+		self.character_batch.clear();
+		self.background_batch.clear();
 
 		graphics::set_screen_coordinates(ctx, graphics::Rect::new(0.0, 0.0, WIDTH as f32, HEIGHT as f32)).unwrap();
 
@@ -118,21 +120,21 @@ impl Display {
 						.scale(mint::Point2 {x: CHAR_WIDTH as f32, y: CHAR_HEIGHT as f32})
 						.color(palette[bg_color_index as usize]);
 
-					background_batch.add(background_rect);
+					self.background_batch.add(background_rect);
 
 					let new_character = graphics::DrawParam::new()
 						.src(char_source)
 						.dest(mint::Point2 {x: (x * CHAR_WIDTH) as f32, y: (y * CHAR_HEIGHT) as f32})
 						.color(palette[fg_color_index as usize]);
-					character_batch.add(new_character);
+					self.character_batch.add(new_character);
 				}
 			}
 		}
 
 		graphics::set_canvas(ctx, Some(&self.canvas));
 		graphics::clear(ctx, graphics::BLACK);
-		background_batch.draw(ctx, self.char_screen_params).unwrap();
-		character_batch.draw(ctx, self.char_screen_params).unwrap();
+		self.background_batch.draw(ctx, self.char_screen_params).unwrap();
+		self.character_batch.draw(ctx, self.char_screen_params).unwrap();
 
 		graphics::set_screen_coordinates(ctx, graphics::Rect::new(0.0, 0.0, self.screen_size.x, self.screen_size.y)).unwrap();
 		graphics::set_canvas(ctx, None);
