@@ -14,7 +14,7 @@ const HEIGHT: u16 = CHAR_HEIGHT * ROWS;
 const CHARACTER_PATH: &str = "/font.png";
 
 pub struct Display {
-	ram: Rc<RefCell<memory::Memory>>,
+	ram: Rc<RefCell<dyn memory::Memory>>,
 	canvas: graphics::Canvas,
 	canvas_params: graphics::DrawParam,
 	character_batch: graphics::spritebatch::SpriteBatch,
@@ -24,7 +24,7 @@ pub struct Display {
 }
 
 impl Display {
-	pub fn new(ctx: &mut ggez::Context, ram: Rc<RefCell<memory::Memory>>) -> Display {
+	pub fn new(ctx: &mut ggez::Context, ram: Rc<RefCell<dyn memory::Memory>>) -> Display {
 		let mut canvas = graphics::Canvas::new(ctx, WIDTH, HEIGHT, ggez::conf::NumSamples::One).unwrap();
 
 		canvas.set_filter(graphics::FilterMode::Nearest);

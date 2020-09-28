@@ -6,11 +6,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub struct Gamepads {
-	ram: Rc<RefCell<memory::Memory>>,
+	ram: Rc<RefCell<dyn memory::Memory>>,
 }
 
 impl Gamepads {
-	pub fn new(ram: Rc<RefCell<memory::Memory>>) -> Gamepads {
+	pub fn new(ram: Rc<RefCell<dyn memory::Memory>>) -> Gamepads {
 		Gamepads {
 			ram,
 		}

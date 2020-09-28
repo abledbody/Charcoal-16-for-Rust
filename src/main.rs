@@ -1,10 +1,14 @@
 use ggez::*;
 use asm_19;
 use std::time::Duration;
+use std::rc::Rc;
+use std::cell::RefCell;
+use std::fs;
 
 mod display;
 mod palettes;
 mod gamepads;
+mod charcoal_mem;
 
 const BLACK: graphics::Color = graphics::Color {r: 0.0, g: 0.0, b: 0.0, a: 1.0};
 const VRAM: u16 = 0xFB65;
@@ -57,6 +61,21 @@ impl event::EventHandler for State {
 	}
 }
 
+fn load_rom(path: &String, ram: Rc<RefCell<charcoal_mem::CharcoalMem>>) {
+	let result = fs::read(path);
+
+	let rom = match result {
+		Ok(data) => data,
+		Err(error) => {
+			panic!("Invalid path to .bin file. \n{:?}", error);
+		},
+	};
+
+	let ram = ram.try_borrow_mut().unwrap();
+
+	ram.load(rom)
+}
+
 fn main() {
 	let args: Vec<String> = std::env::args().collect();
 
@@ -64,8 +83,9 @@ fn main() {
 		println!("Please provide a path to the binary file for Charcoal-16 to execute.");
 	}
 	else {
-		let computer = asm_19::Computer::new(false);
-		asm_19::load_rom(&computer, &args[1]);
+		let new_ram = Rc::new(RefCell::new(charcoal_mem::CharcoalMem::new()));
+		let computer = asm_19::Computer::new(new_ram.clone(), false);
+		load_rom(&args[1], new_ram);
 
 		println!("Successfully loaded ROM from {}", args[1]);
 
