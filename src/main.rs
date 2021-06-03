@@ -1,8 +1,6 @@
 use ggez::*;
 use asm_19;
 use std::time::Duration;
-use std::rc::Rc;
-use std::cell::RefCell;
 use std::fs;
 
 mod display;
@@ -22,7 +20,6 @@ struct State {
 	cycle_error: f64,
 	screen: display::Display,
 	computer: asm_19::Computer,
-	gamepads: gamepads::Gamepads,
 }
 
 impl event::EventHandler for State {
@@ -40,19 +37,32 @@ impl event::EventHandler for State {
 		};
 
 		for _i in 0..clock_cycles as u64 {
-			self.computer.cpu.tick();
+			self.computer.tick(false);
 		}
 
-		self.gamepads.update(ctx);
+		gamepads::update(ctx, &mut self.computer.ram);
 
 		Ok(())
 	}
 
 	fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
 		graphics::clear(ctx, BLACK);
-		self.screen.render(ctx);
+		self.screen.render(ctx, &self.computer.ram);
 
 		graphics::present(ctx)?;
+		
+		let attributes = match self.computer.ram.read(crate::VATTRIBUTES) {
+			Ok(value) => value,
+			Err(_err) => {println!("Could not read VATTRIBUTES, defaulting to 0"); 0},
+		};
+		
+		let vblanked_attributes = attributes | 0b0000000010000000;
+
+		match self.computer.ram.write(crate::VATTRIBUTES, vblanked_attributes) {
+			Ok(_) => (),
+			Err(err) => println!("While setting V-blank bit: {}", err.message),
+		};
+		
 		Ok(())
 	}
 	
@@ -61,7 +71,7 @@ impl event::EventHandler for State {
 	}
 }
 
-fn load_rom(path: &String, ram: Rc<RefCell<charcoal_mem::CharcoalMem>>) {
+fn load_rom(path: &String, ram: &mut Box<charcoal_mem::CharcoalMem>) {
 	let result = fs::read(path);
 
 	let rom = match result {
@@ -70,8 +80,6 @@ fn load_rom(path: &String, ram: Rc<RefCell<charcoal_mem::CharcoalMem>>) {
 			panic!("Invalid path to .bin file. \n{:?}", error);
 		},
 	};
-
-	let ram = ram.try_borrow_mut().unwrap();
 
 	ram.load(rom)
 }
@@ -83,9 +91,9 @@ fn main() {
 		println!("Please provide a path to the binary file for Charcoal-16 to execute.");
 	}
 	else {
-		let new_ram = Rc::new(RefCell::new(charcoal_mem::CharcoalMem::new()));
-		let computer = asm_19::Computer::new(new_ram.clone(), false);
-		load_rom(&args[1], new_ram);
+		let mut new_ram = charcoal_mem::CharcoalMem::new();
+		load_rom(&args[1], &mut new_ram);
+		let computer = asm_19::Computer::new(new_ram);
 
 		println!("Successfully loaded ROM from {}", args[1]);
 
@@ -114,14 +122,12 @@ fn main() {
 			.build()
 			.unwrap();
 		
-		let new_screen = display::Display::new(ctx, computer.ram.clone());
-		let gamepads = gamepads::Gamepads::new(computer.ram.clone());
+		let new_screen = display::Display::new(ctx);
 		
 		let state = &mut State {
 			dt: std::time::Duration::new(0, 0),
 			cycle_error: 0.0,
 			screen: new_screen,
-			gamepads,
 			computer,
 		};
 

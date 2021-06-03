@@ -1,8 +1,6 @@
 use asm_19::memory;
 use ggez::*;
 use mint;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 const PADDING: u16 = 2;
 const COLUMNS: u16 = 42;
@@ -14,7 +12,6 @@ const HEIGHT: u16 = CHAR_HEIGHT * ROWS;
 const CHARACTER_PATH: &str = "/font.png";
 
 pub struct Display {
-	ram: Rc<RefCell<dyn memory::Memory>>,
 	canvas: graphics::Canvas,
 	canvas_params: graphics::DrawParam,
 	character_batch: graphics::spritebatch::SpriteBatch,
@@ -24,7 +21,7 @@ pub struct Display {
 }
 
 impl Display {
-	pub fn new(ctx: &mut ggez::Context, ram: Rc<RefCell<dyn memory::Memory>>) -> Display {
+	pub fn new(ctx: &mut ggez::Context) -> Display {
 		let mut canvas = graphics::Canvas::new(ctx, WIDTH, HEIGHT, ggez::conf::NumSamples::One).unwrap();
 
 		canvas.set_filter(graphics::FilterMode::Nearest);
@@ -40,7 +37,6 @@ impl Display {
 		let background_batch = graphics::spritebatch::SpriteBatch::new(blank);
 
 		Display {
-			ram,
 			canvas,
 			canvas_params,
 			char_screen_params,
@@ -72,10 +68,8 @@ impl Display {
 		self.canvas_params = canvas_params;
 	}
 
-	pub fn render(&mut self, ctx: &mut ggez::Context) {
+	pub fn render(&mut self, ctx: &mut ggez::Context, ram: &Box<dyn memory::Memory>) {
 		use graphics::Drawable;
-
-		let ram = self.ram.try_borrow().unwrap();
 
 		let attributes = match ram.read(crate::VATTRIBUTES) {
 			Ok(value) => value,
@@ -99,7 +93,7 @@ impl Display {
 					let short_check = ram.read(vram_read_location + x + y * COLUMNS);
 					let short = match short_check {
 						Ok(value) => value,
-						Err(err) => panic!(err.message),
+						Err(err) => panic!("{}", err.message),
 					};
 
 					let char_index = short & 0b11111111; // 0000,0000,1111,1111;
@@ -144,12 +138,5 @@ impl Display {
 		graphics::clear(ctx, palette[background_color_index as usize]);
 		self.canvas.draw(ctx, self.canvas_params).unwrap();
 		self.canvas.dimensions(ctx);
-
-		let vblanked_attributes = attributes | 0b0000000010000000;
-
-		match ram.write(crate::VATTRIBUTES, vblanked_attributes) {
-			Ok(_) => (),
-			Err(err) => println!("While setting V-blank bit: {}", err.message),
-		};
 	}
 }
