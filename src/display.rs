@@ -1,4 +1,4 @@
-use asm_19::memory;
+use asm_19::memory::Memory;
 use ggez::*;
 use mint;
 
@@ -68,7 +68,7 @@ impl Display {
 		self.canvas_params = canvas_params;
 	}
 
-	pub fn render(&mut self, ctx: &mut ggez::Context, ram: &Box<dyn memory::Memory>) {
+	pub fn render(&mut self, ctx: &mut ggez::Context, ram: &dyn Memory) {
 		use graphics::Drawable;
 
 		let attributes = match ram.read(crate::VATTRIBUTES) {

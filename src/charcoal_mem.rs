@@ -9,10 +9,10 @@ pub struct CharcoalMem {
 }
 
 impl CharcoalMem {
-	pub fn new() -> Box<CharcoalMem> {
-		Box::new(CharcoalMem {
+	pub fn new() -> CharcoalMem {
+		CharcoalMem {
 			data: vec![Cell::new(0); ADDRESSES],
-		})
+		}
 	}
 	
 	pub fn load(&self, byte_data: Vec<u8>) {

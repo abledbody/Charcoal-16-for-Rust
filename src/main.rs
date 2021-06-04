@@ -1,5 +1,6 @@
 use ggez::*;
-use asm_19;
+use asm_19::memory::Memory;
+use asm_19::processor::Processor;
 use std::time::Duration;
 use std::fs;
 
@@ -19,7 +20,8 @@ struct State {
 	dt: Duration,
 	cycle_error: f64,
 	screen: display::Display,
-	computer: asm_19::Computer,
+	cpu: Processor,
+	ram: charcoal_mem::CharcoalMem,
 }
 
 impl event::EventHandler for State {
@@ -37,28 +39,28 @@ impl event::EventHandler for State {
 		};
 
 		for _i in 0..clock_cycles as u64 {
-			self.computer.tick(false);
+			self.cpu.tick(&mut self.ram, false);
 		}
 
-		gamepads::update(ctx, &mut self.computer.ram);
+		gamepads::update(ctx, &mut self.ram);
 
 		Ok(())
 	}
 
 	fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
 		graphics::clear(ctx, BLACK);
-		self.screen.render(ctx, &self.computer.ram);
+		self.screen.render(ctx, &self.ram);
 
 		graphics::present(ctx)?;
 		
-		let attributes = match self.computer.ram.read(crate::VATTRIBUTES) {
+		let attributes = match self.ram.read(crate::VATTRIBUTES) {
 			Ok(value) => value,
 			Err(_err) => {println!("Could not read VATTRIBUTES, defaulting to 0"); 0},
 		};
 		
 		let vblanked_attributes = attributes | 0b0000000010000000;
 
-		match self.computer.ram.write(crate::VATTRIBUTES, vblanked_attributes) {
+		match self.ram.write(crate::VATTRIBUTES, vblanked_attributes) {
 			Ok(_) => (),
 			Err(err) => println!("While setting V-blank bit: {}", err.message),
 		};
@@ -71,7 +73,7 @@ impl event::EventHandler for State {
 	}
 }
 
-fn load_rom(path: &String, ram: &mut Box<charcoal_mem::CharcoalMem>) {
+fn load_rom(path: &String, ram: &mut charcoal_mem::CharcoalMem) {
 	let result = fs::read(path);
 
 	let rom = match result {
@@ -91,9 +93,9 @@ fn main() {
 		println!("Please provide a path to the binary file for Charcoal-16 to execute.");
 	}
 	else {
-		let mut new_ram = charcoal_mem::CharcoalMem::new();
-		load_rom(&args[1], &mut new_ram);
-		let computer = asm_19::Computer::new(new_ram);
+		let mut ram = charcoal_mem::CharcoalMem::new();
+		load_rom(&args[1], &mut ram);
+		let cpu = asm_19::processor::Processor::new();
 
 		println!("Successfully loaded ROM from {}", args[1]);
 
@@ -128,7 +130,8 @@ fn main() {
 			dt: std::time::Duration::new(0, 0),
 			cycle_error: 0.0,
 			screen: new_screen,
-			computer,
+			cpu,
+			ram,
 		};
 
 		event::run(ctx, event_loop, state).unwrap();

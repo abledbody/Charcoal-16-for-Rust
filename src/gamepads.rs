@@ -1,9 +1,9 @@
-use asm_19::memory;
+use asm_19::memory::Memory;
 use ggez::*;
 use ggez::event::KeyCode;
 use ggez::input::keyboard;
 
-pub fn update(ctx: &mut Context, ram: &mut Box<dyn memory::Memory>) {
+pub fn update(ctx: &mut Context, ram: &mut dyn Memory) {
 	let a =			keyboard::is_key_pressed(ctx, KeyCode::Z)		as u16;
 	let b =			keyboard::is_key_pressed(ctx, KeyCode::X)		as u16;
 	let start =		keyboard::is_key_pressed(ctx, KeyCode::V)		as u16;
