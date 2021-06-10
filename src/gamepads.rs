@@ -1,23 +1,35 @@
 use asm_19::memory::Memory;
-use ggez::*;
-use ggez::event::KeyCode;
-use ggez::input::keyboard;
+use crate::charcoal_mem::CharcoalMem;
+use sdl2::keyboard::Keycode;
 
-pub fn update(ctx: &mut Context, ram: &mut dyn Memory) {
-	let a =			keyboard::is_key_pressed(ctx, KeyCode::Z)		as u16;
-	let b =			keyboard::is_key_pressed(ctx, KeyCode::X)		as u16;
-	let start =		keyboard::is_key_pressed(ctx, KeyCode::V)		as u16;
-	let select =	keyboard::is_key_pressed(ctx, KeyCode::C)		as u16;
-	let up =		keyboard::is_key_pressed(ctx, KeyCode::Up)		as u16;
-	let down =		keyboard::is_key_pressed(ctx, KeyCode::Down)	as u16;
-	let left =		keyboard::is_key_pressed(ctx, KeyCode::Left)	as u16;
-	let right =		keyboard::is_key_pressed(ctx, KeyCode::Right)	as u16;
+pub fn input_changed(ram: &mut CharcoalMem, keycode: Keycode, down: bool) {
+	let bit: u16 = match keycode {
+		Keycode::Z =>		0b00000001,
+		Keycode::X =>		0b00000010,
+		Keycode::C =>		0b00000100,
+		Keycode::V =>		0b00001000,
+		Keycode::Up =>		0b00010000,
+		Keycode::Down =>	0b00100000,
+		Keycode::Left =>	0b01000000,
+		Keycode::Right =>	0b10000000,
+		_ => 0x00,
+	};
 	
-	let compiled =	a | (b << 1) | (start << 2) | (select << 3) | (up << 4) | (down << 5) | (left << 6) | (right << 7);
+	let mut mem_value: u16 = match ram.read(crate::GAMEPADS) {
+		Ok(value) => value,
+		Err(_) => 0,
+	};
+	
+	mem_value = if down {
+		mem_value | bit
+	}
+	else {
+		mem_value & !bit
+	};
 
-	let write_check = ram.write(crate::GAMEPADS, compiled);
-	match write_check {
-		Ok(_) => (),
-		Err(error) => println!("{}", error.message),
+	let write_result = ram.peripheral_write(crate::GAMEPADS, mem_value);
+	match write_result {
+		Err(value) => {panic!("{}", value.message);}
+		_ => ()
 	}
 }

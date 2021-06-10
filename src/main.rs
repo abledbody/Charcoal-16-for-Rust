@@ -1,15 +1,20 @@
-use ggez::*;
+extern crate sdl2;
+
 use asm_19::memory::Memory;
 use asm_19::processor::Processor;
 use std::time::Duration;
 use std::fs;
+use sdl2::event::{Event, WindowEvent};
+use sdl2::keyboard::Keycode;
+use sdl2::{Sdl, pixels, surface::Surface, render::Texture};
 
 mod display;
 mod palettes;
 mod gamepads;
 mod charcoal_mem;
 
-const BLACK: graphics::Color = graphics::Color {r: 0.0, g: 0.0, b: 0.0, a: 1.0};
+const TIMESTEP_NANOS: i128 = 1000000000 / 60;
+const BLACK: pixels::Color = pixels::Color {r: 0, g: 0, b: 0, a: 255};
 const VRAM: u16 = 0xFB65;
 const VATTRIBUTES: u16 = 0xFFFD;
 const GAMEPADS: u16 = 0xFFFF;
@@ -17,17 +22,15 @@ const CLOCK_SPEED: f64 = 1000000.0;
 const MAX_TIME_STEP: f64 = 0.5;
 
 struct State {
-	dt: Duration,
 	cycle_error: f64,
 	screen: display::Display,
 	cpu: Processor,
 	ram: charcoal_mem::CharcoalMem,
 }
 
-impl event::EventHandler for State {
-	fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
-		self.dt = timer::delta(ctx);
-		let seconds = self.dt.as_secs_f64();
+impl State {
+	fn update(&mut self, dt: Duration) {
+		let seconds = dt.as_secs_f64();
 		
 		let clock_cycles = if seconds <= MAX_TIME_STEP {
 			let clock_cycles = seconds * CLOCK_SPEED - self.cycle_error;
@@ -38,20 +41,17 @@ impl event::EventHandler for State {
 			MAX_TIME_STEP * CLOCK_SPEED
 		};
 
-		for _i in 0..clock_cycles as u64 {
+		for _ in 0..clock_cycles as u64 {
 			self.cpu.tick(&mut self.ram, false);
 		}
-
-		gamepads::update(ctx, &mut self.ram);
-
-		Ok(())
 	}
 
-	fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
-		graphics::clear(ctx, BLACK);
-		self.screen.render(ctx, &self.ram);
+	fn draw(&mut self, font: &mut Texture) {
+		self.screen.canvas.set_draw_color(BLACK);
+		self.screen.canvas.clear();
+		self.screen.render(&self.ram, font);
 
-		graphics::present(ctx)?;
+		self.screen.canvas.present();
 		
 		let attributes = match self.ram.read(crate::VATTRIBUTES) {
 			Ok(value) => value,
@@ -64,12 +64,6 @@ impl event::EventHandler for State {
 			Ok(_) => (),
 			Err(err) => println!("While setting V-blank bit: {}", err.message),
 		};
-		
-		Ok(())
-	}
-	
-	fn resize_event(&mut self, _ctx: &mut Context, width: f32, height: f32) {
-		self.screen.window_resize(width, height);
 	}
 }
 
@@ -98,42 +92,81 @@ fn main() {
 		let cpu = asm_19::processor::Processor::new();
 
 		println!("Successfully loaded ROM from {}", args[1]);
-
-		let mut window_mode = ggez::conf::WindowMode::default();
-		window_mode.width = 512.0;
-		window_mode.height = 512.0;
-		window_mode.min_width = 256.0;
-		window_mode.min_height = 256.0;
-		window_mode.resizable = true;
-
-		let window_conf = conf::WindowSetup {
-			title: "Charcoal-16".to_owned(),
-			samples: ggez::conf::NumSamples::Zero,
-			vsync: true,
-			icon: "".to_owned(),
-			srgb: true
-		};
-
-		let c_conf = conf::Conf::new();
 		
+		let sdl_ctx = sdl2::init().unwrap();
+		let new_screen = display::Display::new(&sdl_ctx);
 		
-		let (ref mut ctx, ref mut event_loop) = ContextBuilder::new("Charcoal-16", "abledbody")
-			.conf(c_conf)
-			.window_mode(window_mode)
-			.window_setup(window_conf)
-			.build()
-			.unwrap();
-		
-		let new_screen = display::Display::new(ctx);
-		
-		let state = &mut State {
-			dt: std::time::Duration::new(0, 0),
+		let state = State {
 			cycle_error: 0.0,
 			screen: new_screen,
 			cpu,
 			ram,
 		};
 
-		event::run(ctx, event_loop, state).unwrap();
+		game_loop(sdl_ctx, state)
 	}
+}
+
+fn game_loop(sdl_ctx: Sdl, mut state: State) {
+	let mut event_pump = sdl_ctx.event_pump().unwrap();
+	
+	let mut last_frame: std::time::Instant = std::time::Instant::now();
+	let mut prev_error: i128 = 0;
+	let font_surface = Surface::load_bmp(std::path::Path::new(display::CHARACTER_PATH));
+	
+	let mut font = state.screen.canvas.create_texture_from_surface(font_surface.as_ref().unwrap()).unwrap();
+	
+	'running: loop {
+		let this_frame = std::time::Instant::now();
+		let delta_time = this_frame.duration_since(last_frame);
+		last_frame = this_frame;
+		
+		for event in event_pump.poll_iter() {
+			match event {
+				Event::Quit {..} => {
+					break 'running;
+				},
+				Event::KeyDown {keycode, ..} => {
+					match keycode {
+						Some(keycode) => {
+							match keycode {
+								Keycode::Escape => {
+									break 'running;
+								}
+								_ => {
+									gamepads::input_changed(&mut state.ram, keycode, true);
+								}
+							}
+						},
+						_ => ()
+					}
+				},
+				Event::KeyUp {keycode, ..} => {
+					match keycode {
+						Some(keycode) => {
+							gamepads::input_changed(&mut state.ram, keycode, false);
+						}
+						_ => ()
+					}
+				}
+				Event::Window {win_event, ..} => {
+					match win_event {
+						WindowEvent::Resized(w, h) => {
+							state.screen.window_resize(w as u32, h as u32);
+						}
+						_ => ()
+					}
+				}
+				_ => ()
+			}
+		}
+		
+		state.update(delta_time);
+		state.draw(&mut font);
+		
+		let time_error = std::cmp::min(delta_time.as_nanos() as i128 - TIMESTEP_NANOS + prev_error, TIMESTEP_NANOS);
+		prev_error = time_error;
+		
+        std::thread::sleep(std::time::Duration::from_nanos((TIMESTEP_NANOS - time_error) as u64));
+    }
 }

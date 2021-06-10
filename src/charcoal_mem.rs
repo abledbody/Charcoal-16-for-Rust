@@ -34,6 +34,23 @@ impl CharcoalMem {
 		}
 	}
 }
+
+impl CharcoalMem {
+	pub fn peripheral_write(&self, address: u16, value: u16) -> Result<(), MemoryWriteError> {
+		if address as usize >= self.data.len() {
+			Err(MemoryWriteError {
+				message: format!("Attempted to write {:04X} to out of bounds address {:04X}", value, address),
+				address,
+				value,
+			})
+		}
+		else {
+			self.data[address as usize].set(value);
+			Ok(())
+		}
+	}
+}
+
 impl Memory for CharcoalMem {
 	fn read(&self, address: u16) -> Result<u16, MemoryReadError> {
 		if address as usize >= self.data.len() {
@@ -56,8 +73,20 @@ impl Memory for CharcoalMem {
 			})
 		}
 		else {
-			self.data[address as usize].set(value);
-			Ok(())
+			match address {
+				crate::GAMEPADS => {
+					Err(MemoryWriteError {
+						message: format!("Attempted to write {:04X} to GAMEPADS at {:04X}", value, address),
+						address,
+						value,
+					})
+				},
+				_ => {
+					self.data[address as usize].set(value);
+					Ok(())
+				},
+			}
+			
 		}
 	}
 }
