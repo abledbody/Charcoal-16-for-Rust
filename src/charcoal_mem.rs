@@ -74,7 +74,7 @@ impl Memory for CharcoalMem {
 		}
 		else {
 			match address {
-				crate::GAMEPADS => {
+				crate::gamepads::GAMEPADS => {
 					Err(MemoryWriteError {
 						message: format!("Attempted to write {:04X} to GAMEPADS at {:04X}", value, address),
 						address,

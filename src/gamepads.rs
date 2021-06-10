@@ -2,6 +2,8 @@ use asm_19::memory::Memory;
 use crate::charcoal_mem::CharcoalMem;
 use sdl2::keyboard::Keycode;
 
+pub const GAMEPADS: u16 = 0xFFFF;
+
 pub fn input_changed(ram: &mut CharcoalMem, keycode: Keycode, down: bool) {
 	let bit: u16 = match keycode {
 		Keycode::Z =>		0b00000001,
@@ -15,7 +17,7 @@ pub fn input_changed(ram: &mut CharcoalMem, keycode: Keycode, down: bool) {
 		_ => 0x00,
 	};
 	
-	let mut mem_value: u16 = match ram.read(crate::GAMEPADS) {
+	let mut mem_value: u16 = match ram.read(GAMEPADS) {
 		Ok(value) => value,
 		Err(_) => 0,
 	};
@@ -27,7 +29,7 @@ pub fn input_changed(ram: &mut CharcoalMem, keycode: Keycode, down: bool) {
 		mem_value & !bit
 	};
 
-	let write_result = ram.peripheral_write(crate::GAMEPADS, mem_value);
+	let write_result = ram.peripheral_write(GAMEPADS, mem_value);
 	match write_result {
 		Err(value) => {panic!("{}", value.message);}
 		_ => ()
