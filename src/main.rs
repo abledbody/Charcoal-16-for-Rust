@@ -19,6 +19,7 @@ const MAX_TIME_STEP: f64 = 0.5;
 
 /// Contains the current state of the machine. Responsible for peripherals and hardware, as well as keeping track of time.
 struct State {
+	/// The offset of the previous frame from the desired timestep.
 	cycle_error: f64,
 	screen: display::Display,
 	cpu: Processor,
@@ -57,12 +58,14 @@ impl State {
 
 		self.screen.canvas.present();
 		
+		// We only want to change one bit in a byte, so we need to know what's actually at the address before we write.
 		let attributes = match self.ram.read(display::VATTRIBUTES) {
 			Ok(value) => value,
 			Err(_err) => {println!("Could not read VATTRIBUTES, defaulting to 0"); 0},
 		};
 		
-		let vblanked_attributes = attributes | 0b0000000010000000;
+		// The 8th bit of VATTRIBUTES is the vblank bit. Whatever state it was before, we're setting it to on right now.
+		let vblanked_attributes = attributes | 0b0000_0000_1000_0000;
 
 		match self.ram.write(display::VATTRIBUTES, vblanked_attributes) {
 			Ok(_) => (),
@@ -72,32 +75,36 @@ impl State {
 }
 
 /// Verifies that a ROM exists at the provided path, and tells the CharcoalMem to load everything in it.
-fn load_rom(path: &String, ram: &mut charcoal_mem::CharcoalMem) {
-	let result = fs::read(path);
-
-	let rom = match result {
+fn load_rom(path: &String, ram: &mut charcoal_mem::CharcoalMem) -> Result<(), std::io::Error>{
+	let rom = match fs::read(path) {
 		Ok(data) => data,
-		Err(error) => {
-			panic!("Invalid path to .bin file. \n{:?}", error);
-		},
+		Err(error) => {return Err(error)},
 	};
 
-	ram.load(rom)
+	ram.load(rom);
+	Ok(())
 }
 
 /// Checks if a binary file has been provided to the program, and loads it, before starting the game loop.
 fn main() {
 	let args: Vec<String> = std::env::args().collect();
 
+	// For whatever reason the first argument is the original command.
+	// If it's less than 2, we must not have a ROM argument.
 	if args.len() < 2 {
 		println!("Please provide a path to the binary file for Charcoal-16 to execute.");
 	}
 	else {
 		let mut ram = charcoal_mem::CharcoalMem::new();
-		load_rom(&args[1], &mut ram);
+		
+		match load_rom(&args[1], &mut ram) {
+			Ok(_) => (println!("Successfully loaded ROM from {}", args[1])),
+			Err(error) => {
+				panic!("Could not find valid .bin file: {}", error)
+			}
+		}
+		
 		let cpu = asm_19::processor::Processor::new();
-
-		println!("Successfully loaded ROM from {}", args[1]);
 		
 		let sdl_ctx = sdl2::init().unwrap();
 		let new_screen = display::Display::new(&sdl_ctx);
@@ -119,19 +126,33 @@ fn game_loop(sdl_ctx: Sdl, mut state: State) {
 	
 	let mut last_frame: std::time::Instant = std::time::Instant::now();
 	let mut prev_error: i128 = 0;
-	let mut font_surface = Surface::load_bmp(display::CHARACTER_PATH).unwrap();
 	
-	let alpha_white = &[pixels::Color{r:0,g:0,b:0,a:0}, pixels::Color::WHITE];
-	font_surface.set_palette(&pixels::Palette::with_colors(alpha_white).unwrap()).unwrap();
+	// I'm disappointed that we can't use the palette features on Surface in the display draw,
+	// because of how expensive (and memory leak-y) converting to textures is.
+	// But, we can still use an indexed bitmap by making converting black to transparent, and using
+	// set_color_mod to recolor the white parts of the texture before drawing.
+	let mut font_surface = Surface::load_bmp(display::FONT_PATH).unwrap();
+	
+	
+	let alpha_white_pal = &pixels::Palette::with_colors(
+		&[pixels::Color{r:255,g:255,b:255,a:0}, pixels::Color::WHITE])
+		.unwrap();
+	font_surface.set_palette(alpha_white_pal).unwrap();
+	// Indexed bitmaps have no alpha by defualt, so we need to tell the surface here that it has transparency capabilities.
 	font_surface.set_blend_mode(sdl2::render::BlendMode::Blend).unwrap();
 	
-	let mut font = font_surface.as_texture(&state.screen.canvas.texture_creator()).unwrap();
+	let texture_creator = state.screen.canvas.texture_creator();
+	// Using textures is a pain in the butt, so instead of trying to coax a reference to the texture into a struct,
+	// we're just going to pass it down the chain of functions to display.
+	let mut font = font_surface.as_texture(&texture_creator).unwrap();
 	
 	'running: loop {
+		// Calculating delta_time
 		let this_frame = std::time::Instant::now();
 		let delta_time = this_frame.duration_since(last_frame);
 		last_frame = this_frame;
 		
+		// Handling events
 		for event in event_pump.poll_iter() {
 			match event {
 				Event::Quit {..} => {
@@ -141,6 +162,7 @@ fn game_loop(sdl_ctx: Sdl, mut state: State) {
 					match keycode {
 						Some(keycode) => {
 							match keycode {
+								// Special case. If we press escape, close the program. Nevermind sending it to the gamepad.
 								Keycode::Escape => {
 									break 'running;
 								}
@@ -175,9 +197,11 @@ fn game_loop(sdl_ctx: Sdl, mut state: State) {
 		state.update(delta_time);
 		state.draw(&mut font);
 		
+		// We need to accumulate error so that we can accurately predict how long we need to sleep the thread for to get back in step after lag.
 		let time_error = std::cmp::min(delta_time.as_nanos() as i128 - TIMESTEP_NANOS + prev_error, TIMESTEP_NANOS);
 		prev_error = time_error;
 		
+		// Probably not the best way to handle frame delays.
         std::thread::sleep(std::time::Duration::from_nanos((TIMESTEP_NANOS - time_error) as u64));
     }
 }

@@ -3,7 +3,7 @@
 [[package]]
 name = "asm_19"
 version = "0.1.0"
-source = "git+https://github.com/abledbody/ASM-19-for-rust#8a5a92d7458225264abb6743a4fecf4575138f7f"
+source = "git+https://github.com/abledbody/ASM-19-for-rust#f10bc4b62ec2d17fbe070964653fcf2fc136941e"
 
 [[package]]
 name = "bitflags"

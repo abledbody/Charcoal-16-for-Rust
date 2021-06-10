@@ -1,5 +1,6 @@
 use sdl2::pixels::Color;
 
+/// The different palettes available to Charcoal-16. Currently only the first 3 are anything other than black.
 pub const PALETTES: [[Color; 16]; 8] = [
 	[ // High-Saturation CGA
 	Color	{r:	000,	g:	000,	b:	000,	a:	255}, // Black

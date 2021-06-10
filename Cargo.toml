@@ -15,4 +15,3 @@ asm_19 = { git = "https://github.com/abledbody/ASM-19-for-rust" }
 [dependencies.sdl2]
 version = "0.34.4"
 default-features = false
-features = ["unsafe_textures"]
