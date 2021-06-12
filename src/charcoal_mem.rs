@@ -13,7 +13,7 @@ pub struct CharcoalMem {
 impl CharcoalMem {
 	pub fn new() -> CharcoalMem {
 		CharcoalMem {
-			data: vec![0; ADDRESSES],
+			data: [0; ADDRESSES],
 		}
 	}
 	
