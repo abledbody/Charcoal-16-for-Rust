@@ -1,7 +1,7 @@
 extern crate sdl2;
 
 use asm_19::{memory::Memory, processor::Processor};
-use std::{fs, time::Duration};
+use std::{fs, time::Duration, env::current_exe, path::Path};
 use sdl2::{Sdl, pixels, surface::Surface, render::Texture, keyboard::Keycode,
 	event::{Event, WindowEvent}};
 
@@ -75,7 +75,7 @@ impl State {
 }
 
 /// Verifies that a ROM exists at the provided path, and tells the CharcoalMem to load everything in it.
-fn load_rom(path: &String, ram: &mut charcoal_mem::CharcoalMem) -> Result<(), std::io::Error>{
+fn load_rom<P>(path: &P, ram: &mut charcoal_mem::CharcoalMem) -> Result<(), std::io::Error> where P: AsRef<Path> {
 	let rom = match fs::read(path) {
 		Ok(data) => data,
 		Err(error) => {return Err(error)},
@@ -127,19 +127,23 @@ fn game_loop(sdl_ctx: Sdl, mut state: State) {
 	let mut last_frame: std::time::Instant = std::time::Instant::now();
 	let mut prev_error: i128 = 0;
 	
+	let mut font_path = current_exe().unwrap();
+	font_path.pop();
+	font_path.push(display::FONT_PATH);
 	// I'm disappointed that we can't use the palette features on Surface in the display draw,
 	// because of how expensive (and memory leak-y) converting to textures is.
 	// But, we can still use an indexed bitmap by making converting black to transparent, and using
 	// set_color_mod to recolor the white parts of the texture before drawing.
-	let mut font_surface = Surface::load_bmp(display::FONT_PATH).unwrap();
+	let mut font_surface = Surface::load_bmp(font_path).unwrap();
 	
+	// Indexed bitmaps have no alpha by defualt, so we need to tell the surface here that it has transparency capabilities.
+	font_surface.set_blend_mode(sdl2::render::BlendMode::Blend).unwrap();
 	
 	let alpha_white_pal = &pixels::Palette::with_colors(
 		&[pixels::Color{r:255,g:255,b:255,a:0}, pixels::Color::WHITE])
 		.unwrap();
 	font_surface.set_palette(alpha_white_pal).unwrap();
-	// Indexed bitmaps have no alpha by defualt, so we need to tell the surface here that it has transparency capabilities.
-	font_surface.set_blend_mode(sdl2::render::BlendMode::Blend).unwrap();
+	
 	
 	let texture_creator = state.screen.canvas.texture_creator();
 	// Using textures is a pain in the butt, so instead of trying to coax a reference to the texture into a struct,
